@@ -233,11 +233,10 @@ export default function SubscriptionReviewModal({ open, subscription, onClose, o
               <button
                 type="button"
                 onClick={() => setMessageMode(messageMode === "sms" ? "none" : "sms")}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                  messageMode === "sms"
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${messageMode === "sms"
                     ? "border-amber-500 bg-amber-500 text-white"
                     : "border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-300"
-                }`}
+                  }`}
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Send SMS
@@ -248,11 +247,10 @@ export default function SubscriptionReviewModal({ open, subscription, onClose, o
               <button
                 type="button"
                 onClick={() => setMessageMode(messageMode === "email" ? "none" : "email")}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                  messageMode === "email"
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${messageMode === "email"
                     ? "border-amber-500 bg-amber-500 text-white"
                     : "border-sky-200 text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300"
-                }`}
+                  }`}
               >
                 <Mail className="h-3.5 w-3.5" />
                 Send Email

@@ -454,11 +454,23 @@ export default function WoredaProfileMap() {
     // Initialize Map
     useEffect(() => {
         if (!mapContainerRef.current || mapRef.current) return;
-        const map = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: false, minZoom: 11, maxZoom: 16 }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+        const map = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: true, minZoom: 11, maxZoom: 16 }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+        // Move attribution to bottom-left, keep it minimal
+        map.attributionControl.setPrefix('');
         tileLayersRef.current = {
-            light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'),
-            streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
+            light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }),
+            streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19
+            })
         };
         tileLayersRef.current[tileLayerType].addTo(map);
         L.control.zoom({ position: 'bottomright' }).addTo(map);

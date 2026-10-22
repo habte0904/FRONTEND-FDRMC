@@ -22,6 +22,7 @@ import {
 } from '../../api/woredaProfileService';
 import { getProfileMappings, type ProfileMapping } from '../../api/profileMappingService';
 import { Can } from '../../components/auth/PermissionGuard';
+import { useIsBranchUser, useBranchSubcity } from '../../context/HierarchyContext';
 
 // Modular components and constants
 import {
@@ -41,12 +42,22 @@ const WoredaProfile: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    // Branch scope: restrict data to user's subcity if they are a branch user
+    const isBranchUser = useIsBranchUser();
+    const branchSubcity = useBranchSubcity();
+
     const [profiles, setProfiles] = useState<WProfile[]>([]);
     const [stats, setStats] = useState<WoredaProfileStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    // Lazy-initialize level and path so the very first fetchData() uses the correct scope.
+    // Branch users start at 'subcity' level — they see their one subcity card and drill into woredas.
     const [level, setLevel] = useState<'city' | 'subcity' | 'woreda' | 'block' | 'household'>('subcity');
-    const [path, setPath] = useState<{ subcity: string | null; woreda: string | null; block: string | null }>({ subcity: null, woreda: null, block: null });
+    const [path, setPath] = useState<{ subcity: string | null; woreda: string | null; block: string | null }>(
+        () => (isBranchUser && branchSubcity)
+            ? { subcity: branchSubcity, woreda: null, block: null }
+            : { subcity: null, woreda: null, block: null }
+    );
     const [showCityOverview, setShowCityOverview] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [showWoredaForm, setShowWoredaForm] = useState(false);
@@ -57,8 +68,24 @@ const WoredaProfile: React.FC = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'Draft' | 'Submitted' | 'Reviewed' | 'Approved' | 'Pending Review' | 'Rejected'>('ALL');
     const [riskFilter, setRiskFilter] = useState<'ALL' | 'HIGH' | 'MODERATE' | 'LOW'>('ALL');
+    // subcityFilter stays 'ALL' for branch users — backend already scopes data to their subcity.
+    // Pre-setting it to branchSubcity causes a case-mismatch with stored values (e.g. "Yeka" vs "yeka").
     const [subcityFilter, setSubcityFilter] = useState<string>('ALL');
     const [sortBy, setSortBy] = useState<'risk_desc' | 'risk_asc' | 'pop_desc' | 'name_asc' | 'date_desc'>('risk_desc');
+
+    // Sync path when branchSubcity resolves from API (in case localStorage was stale or missing)
+    useEffect(() => {
+        if (isBranchUser && branchSubcity) {
+            setPath(prev => {
+                // Only update if not already set correctly (avoids resetting deeper navigation)
+                if (prev.subcity !== branchSubcity && !prev.woreda && !prev.block) {
+                    return { subcity: branchSubcity, woreda: null, block: null };
+                }
+                return prev;
+            });
+            // Keep level at 'subcity' — branch users start there and drill down themselves
+        }
+    }, [isBranchUser, branchSubcity]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -94,8 +121,11 @@ const WoredaProfile: React.FC = () => {
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
+            // Always pass subcity for branch users (so the backend filter is explicit)
+            const activeSubcity = path.subcity || (isBranchUser ? branchSubcity : null);
+
             const params: any = { level };
-            if (path.subcity) params.subcity = path.subcity;
+            if (activeSubcity) params.subcity = activeSubcity;
             if (path.woreda) params.woreda = path.woreda;
             if (path.block) params.block = path.block;
 
@@ -112,13 +142,16 @@ const WoredaProfile: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [path, level]);
+    }, [path, level, isBranchUser, branchSubcity]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const subcityOptions = useMemo(() => {
+        if (isBranchUser && branchSubcity) {
+            return [branchSubcity];
+        }
         return Array.from(new Set(profiles.map(p => p.location?.subcity).filter(Boolean))).sort() as string[];
-    }, [profiles]);
+    }, [profiles, isBranchUser, branchSubcity]);
 
     const getRiskScore = (p: WProfile) => parseFloat((p.risk_index?.overall_woreda_risk_score || p.hierarchy_summary?.dr_risk_score || 0).toString());
     const getRiskCategory = (score: number) => score >= 7.0 ? 'HIGH' : score >= 4.0 ? 'MODERATE' : 'LOW';
@@ -138,7 +171,9 @@ const WoredaProfile: React.FC = () => {
 
             const matchesSearch = !query || title.includes(query) || subtitle.includes(query) || subcityStr.includes(query) || houseNoStr.includes(query);
             const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
-            const matchesSubcity = subcityFilter === 'ALL' || p.location?.subcity === subcityFilter;
+            // Case-insensitive subcity match — DB may store "yeka" while filter holds "Yeka"
+            const matchesSubcity = subcityFilter === 'ALL' ||
+                (p.location?.subcity || '').toLowerCase() === subcityFilter.toLowerCase();
             const score = getRiskScore(p);
             const category = getRiskCategory(score);
             const matchesRisk = riskFilter === 'ALL' || category === riskFilter;
@@ -265,23 +300,52 @@ const WoredaProfile: React.FC = () => {
                 {/* Compact Navigation & Action Header */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-200">
                     <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-100/50 rounded-2xl border border-slate-200/60 inline-flex">
-                        {/* Sub-Cities crumb — top root level */}
-                        <button
-                            onClick={() => { setLevel('subcity'); setPath({ subcity: null, woreda: null, block: null }); setShowCityOverview(false); }}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${level === 'subcity' && !path.subcity ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium'}`}
-                        >
-                            <Activity size={14} />
-                            <span className="text-[10px] font-black uppercase tracking-widest leading-none">Sub-Cities</span>
-                        </button>
-                        {/* Selected sub-city crumb */}
-                        {path.subcity && (
+                        {/* Branch users: their subcity is the permanent root crumb */}
+                        {isBranchUser && branchSubcity && (
+                            <button
+                                onClick={() => {
+                                    setLevel('subcity');
+                                    setPath({ subcity: branchSubcity, woreda: null, block: null });
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                                    level === 'subcity' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium'
+                                }`}
+                            >
+                                <Activity size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest leading-none">{branchSubcity}</span>
+                            </button>
+                        )}
+                        {/* Admin/HO: root Sub-Cities crumb */}
+                        {!isBranchUser && (
+                            <button
+                                onClick={() => { setLevel('subcity'); setPath({ subcity: null, woreda: null, block: null }); setShowCityOverview(false); }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${level === 'subcity' && !path.subcity ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium'}`}
+                            >
+                                <Activity size={14} />
+                                <span className="text-[10px] font-black uppercase tracking-widest leading-none">Sub-Cities</span>
+                            </button>
+                        )}
+                        {/* Admin: selected subcity crumb (appears after drilling into a subcity card) */}
+                        {!isBranchUser && path.subcity && (
                             <>
                                 <ChevronRight size={14} className="text-slate-300" />
                                 <button
                                     onClick={() => { setLevel('woreda'); setPath({ subcity: path.subcity, woreda: null, block: null }); }}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${level === 'woreda' ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium'}`}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${level === 'woreda' && !path.woreda ? 'bg-white shadow-sm text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium'}`}
                                 >
                                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">{path.subcity}</span>
+                                </button>
+                            </>
+                        )}
+                        {/* Woredas back-link: visible when a specific woreda is selected */}
+                        {path.subcity && path.woreda && (
+                            <>
+                                <ChevronRight size={14} className="text-slate-300" />
+                                <button
+                                    onClick={() => { setLevel('woreda'); setPath({ subcity: path.subcity, woreda: null, block: null }); }}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl transition-all text-slate-500 hover:bg-slate-200/50 hover:text-slate-900 font-medium"
+                                >
+                                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">Woredas</span>
                                 </button>
                             </>
                         )}
@@ -470,15 +534,25 @@ const WoredaProfile: React.FC = () => {
                                     {/* Subcity Filter */}
                                     {subcityOptions.length > 0 && (
                                         <div className="flex flex-col space-y-1.5 p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                                <Building2 size={12} className="text-indigo-500" /> Subcity
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5">
+                                                    <Building2 size={12} className="text-indigo-500" /> Subcity
+                                                </span>
+                                                {isBranchUser && branchSubcity && (
+                                                    <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1 rounded border border-blue-200 dark:border-blue-800">
+                                                        🔒 Locked
+                                                    </span>
+                                                )}
                                             </label>
                                             <select
                                                 value={subcityFilter}
+                                                disabled={isBranchUser && Boolean(branchSubcity)}
                                                 onChange={e => setSubcityFilter(e.target.value)}
-                                                className="bg-transparent border-none outline-none font-bold cursor-pointer text-xs text-slate-800 dark:text-slate-200 pr-2"
+                                                className={`bg-transparent border-none outline-none font-bold cursor-pointer text-xs text-slate-800 dark:text-slate-200 pr-2 ${
+                                                    isBranchUser && branchSubcity ? 'cursor-not-allowed opacity-80' : ''
+                                                }`}
                                             >
-                                                <option value="ALL">All Subcities</option>
+                                                {!isBranchUser && <option value="ALL">All Subcities</option>}
                                                 {subcityOptions.map(sc => (
                                                     <option key={sc} value={sc}>{sc}</option>
                                                 ))}

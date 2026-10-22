@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { RiskMatrix } from '../../components/dashboard/RiskMatrix';
 import { DRMReportModal } from '../../components/dashboard/DRMReportModal';
+import { useIsBranchUser, useBranchSubcity } from '../../context/HierarchyContext';
 
 type DRMTabKey = 
   | 'overview' 
@@ -36,6 +37,10 @@ export default function Home() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<DRMTabKey>('overview');
 
+  // Branch scope helpers
+  const isBranchUser = useIsBranchUser();
+  const branchSubcity = useBranchSubcity();
+
   const isSuperAdmin = user?.roles?.some(r => ['superadmin', 'super admin', 'super_admin'].includes(r.name.toLowerCase()));
   const isHeadOfficeSuperAdmin = (user?.accessLevel === 'super_admin' || isSuperAdmin) && user?.organizationType === 'head_office';
   const isBranchAdmin = user?.accessLevel === 'branch_admin';
@@ -48,12 +53,16 @@ export default function Home() {
   // Filters State - Hidden by default
   const [showFilters, setShowFilters] = useState(false);
   const [filterUser, setFilterUser] = useState('');
+  // filterSubcity stays '' — backend already scopes branch user data via RBAC middleware.
+  // Pre-setting it can cause case-mismatch with stored DB values (e.g. "Yeka" vs "yeka").
   const [filterSubcity, setFilterSubcity] = useState('');
   const [filterWoreda, setFilterWoreda] = useState('');
   const [filterHazard, setFilterHazard] = useState('');
   const [filterRiskLevel, setFilterRiskLevel] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterYear, setFilterYear] = useState('2025/26');
+
+  // (No automatic sync of filterSubcity needed — backend handles branch scoping via RBAC middleware)
 
   // Report Modal State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -401,15 +410,25 @@ export default function Home() {
 
                 {/* 2. Subcity Filter */}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-[#C8102E]" /> Subcity
+                  <label className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#C8102E]" /> Subcity
+                    </span>
+                    {isBranchUser && branchSubcity && (
+                      <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1 rounded border border-blue-200 dark:border-blue-800">
+                        🔒 Locked
+                      </span>
+                    )}
                   </label>
                   <select
                     value={filterSubcity}
+                    disabled={isBranchUser && Boolean(branchSubcity)}
                     onChange={e => setFilterSubcity(e.target.value)}
-                    className="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition"
+                    className={`w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#C8102E]/20 focus:border-[#C8102E] outline-none transition ${
+                      isBranchUser && branchSubcity ? 'cursor-not-allowed opacity-80' : ''
+                    }`}
                   >
-                    <option value="">All Subcities</option>
+                    {!isBranchUser && <option value="">All Subcities</option>}
                     {(stats?.filterOptions?.subcities || [
                       'Addis Ketema', 'Akaky Kaliti', 'Arada', 'Bole', 'Gullele',
                       'Kirkos', 'Kolfe Keranio', 'Lideta', 'Nifas Silk-Lafto', 'Yeka', 'Lemi Kura'

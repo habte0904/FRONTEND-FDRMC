@@ -131,3 +131,52 @@ export const useIsHeadOffice = () => {
     const { organizationType } = useHierarchy();
     return organizationType === 'head_office';
 };
+
+const getStoredUser = () => {
+    try {
+        const stored = localStorage.getItem('user');
+        if (stored) return JSON.parse(stored);
+    } catch {
+        // ignore
+    }
+    return null;
+};
+
+/**
+ * Returns true if the logged-in user is assigned to a branch (subcity branch).
+ * Head Office and Super Admin users return false.
+ */
+export const useIsBranchUser = () => {
+    const { organizationType, accessLevel, loading } = useHierarchy();
+    if (!loading) {
+        if (accessLevel === 'super_admin') return false;
+        return organizationType === 'branch';
+    }
+    const stored = getStoredUser();
+    if (!stored) return false;
+    if (stored.accessLevel === 'super_admin' || stored.organizationType === 'head_office') return false;
+    return stored.organizationType === 'branch' || stored.organization?.type === 'branch';
+};
+
+/**
+ * Returns the branch subcity name if the user is a branch user, or null otherwise.
+ * Reads from organization.subcityName which is populated by the backend.
+ */
+export const useBranchSubcity = () => {
+    const { organization, organizationType, accessLevel, loading } = useHierarchy();
+    if (!loading) {
+        if (accessLevel === 'super_admin' || organizationType === 'head_office') return null;
+        if (organizationType === 'branch') {
+            const name = (organization as any)?.subcityName ||
+                ((organization as any)?.name ? (organization as any).name.replace(/\s+branch$/i, '').trim() : null);
+            if (name) return name;
+        }
+    }
+    const stored = getStoredUser();
+    if (!stored) return null;
+    if (stored.accessLevel === 'super_admin' || stored.organizationType === 'head_office') return null;
+    const org = stored.organization;
+    if (!org) return null;
+    const name = org.subcityName || (org.name ? org.name.replace(/\s+branch$/i, '').trim() : null);
+    return name || null;
+};

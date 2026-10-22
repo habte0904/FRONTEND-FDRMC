@@ -139,7 +139,14 @@ const Footer: React.FC<{
           <div className="space-y-8">
             <div className="flex items-center gap-3 group cursor-pointer inline-block">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300 shadow-sm border border-slate-700">
-                <img src={logoUrl} alt={`${portalName} Logo`} className="w-8 h-8 object-contain" />
+                <img
+                  src={logoUrl}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/images/logo/logo.png";
+                  }}
+                  alt={`${portalName} Logo`}
+                  className="w-8 h-8 object-contain"
+                />
               </div>
               <span className="text-2xl font-black tracking-tight text-white">{portalName}</span>
             </div>

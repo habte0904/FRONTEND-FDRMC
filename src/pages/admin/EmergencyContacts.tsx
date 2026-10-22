@@ -4,6 +4,7 @@ import { Pencil, Plus, ShieldAlert, Trash2, X } from "lucide-react";
 import PageMeta from "../../components/common/PageMeta";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import Button from "../../components/ui/button/Button";
+import { useBranchSubcity } from "@/context/HierarchyContext";
 import {
   emergencyContactService,
   type EmergencyContact,
@@ -74,6 +75,7 @@ const iconLabel: Record<EmergencyContact["iconKey"], string> = {
 };
 
 export default function EmergencyContacts() {
+  const branchSubcity = useBranchSubcity();
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [availableRegions, setAvailableRegions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,12 @@ export default function EmergencyContacts() {
 
   const openCreateForm = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(branchSubcity ? {
+      ...emptyForm,
+      directoryType: "regional",
+      regions: branchSubcity,
+      addressLine: `${branchSubcity} Branch`,
+    } : emptyForm);
     setShowForm(true);
   };
 
@@ -228,6 +235,19 @@ export default function EmergencyContacts() {
         description="Manage emergency contact directory entries"
       />
       <PageBreadcrumb pageTitle="Emergency Contact Directory" />
+      {branchSubcity && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+            <span>
+              <strong>Branch Jurisdiction:</strong> Showing emergency contacts for <strong>{branchSubcity} Branch</strong>.
+            </span>
+          </div>
+          <span className="rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+            {branchSubcity} Branch
+          </span>
+        </div>
+      )}
 
       <div className="space-y-6">
         <div className="rounded-[28px] border border-gray-200 bg-white px-5 py-5 shadow-sm dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">

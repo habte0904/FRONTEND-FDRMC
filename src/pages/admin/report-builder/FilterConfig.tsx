@@ -1,6 +1,7 @@
 import React from 'react';
-import { Calendar, X, Filter, Clock } from 'lucide-react';
+import { Calendar, X, Filter, Clock, Lock } from 'lucide-react';
 import type { DataSource, ReportFilters } from './types';
+import { useIsBranchUser, useBranchSubcity } from '../../../context/HierarchyContext';
 
 interface Props {
   source: DataSource;
@@ -10,6 +11,9 @@ interface Props {
 }
 
 export const FilterConfig: React.FC<Props> = ({ source, filters, onChange, onClear }) => {
+  const isBranchUser = useIsBranchUser();
+  const branchSubcity = useBranchSubcity();
+
   const activeCount = Object.values(filters).filter((v) => {
     if (v === null || v === undefined || v === '') return false;
     if (typeof v === 'object') {
@@ -200,17 +204,29 @@ export const FilterConfig: React.FC<Props> = ({ source, filters, onChange, onCle
             );
           }
 
+          const isSubcityField = ['subcity', 'subCity', 'location.subcity', 'location.subCity'].includes(filterDef.key);
+          const isLockedByBranch = isBranchUser && Boolean(branchSubcity) && isSubcityField;
+          const displayValue = isLockedByBranch ? branchSubcity : ((value as string) || '');
+
           return (
             <div key={filterDef.key}>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                {filterDef.label}
+              <label className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span>{filterDef.label}</span>
+                {isLockedByBranch && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    <Lock className="w-2.5 h-2.5" /> Branch Scope
+                  </span>
+                )}
               </label>
               <input
                 type="text"
-                value={(value as string) || ''}
-                onChange={(e) => onChange(filterDef.key, e.target.value || null)}
+                disabled={isLockedByBranch}
+                value={displayValue}
+                onChange={(e) => !isLockedByBranch && onChange(filterDef.key, e.target.value || null)}
                 placeholder={`Search ${filterDef.label}...`}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition shadow-xs"
+                className={`w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 focus:outline-none transition shadow-xs ${
+                  isLockedByBranch ? 'bg-slate-100 dark:bg-slate-800/80 cursor-not-allowed opacity-80' : ''
+                }`}
               />
             </div>
           );

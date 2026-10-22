@@ -1,16 +1,37 @@
 import api from './axios';
 
 export interface Organization {
-    id: string; // or _id depending on backend response, dto says id
+    id: string; // or _id
+    _id?: string;
     name: string;
-    type: string;
-    parentId?: string | null;
+    type: 'head_office' | 'branch' | 'subcity' | 'woreda' | string;
+    parentId?: string | { id?: string; _id?: string; name: string; type?: string } | null;
+    subcity?: string | { _id: string; name: string } | null;
+    subcityName?: string;
+    branchCode?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    description?: string;
+    status?: 'active' | 'inactive';
+    woredasCount?: number;
+    woredas?: Array<{ _id: string; name: string }>;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface OrganizationInput {
     name: string;
     type: string;
     parentId?: string | null;
+    subcity?: string | null;
+    subcityName?: string;
+    branchCode?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    description?: string;
+    status?: string;
 }
 
 export const getOrganizations = async () => {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useAuth } from "../../context/AuthContext";
+import { resolvePortalAssetUrl } from "../../utils/resolvePortalAssetUrl";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,14 +16,14 @@ export default function UserDropdown() {
     setIsOpen(false);
   }
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         onClick={toggleDropdown}
-        className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
+        className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400 cursor-pointer"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
+        <span className="mr-1.5 sm:mr-2 overflow-hidden rounded-full h-10 w-10 border-2 border-gray-200 dark:border-gray-700 shrink-0">
           <img
-            src={user?.profileImage || "/images/user/users.png"}
+            src={resolvePortalAssetUrl(user?.profileImage) || "/images/user/users.png"}
             alt="User"
             className="h-full w-full object-cover"
           />

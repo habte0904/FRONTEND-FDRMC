@@ -3,7 +3,7 @@ import PageMeta from "../../components/common/PageMeta";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import api from "../../api/axios";
 import ReportDashboardCards from "../../components/admin/ReportDashboardCards";
-import { Pause, Play, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, Trash2 } from "lucide-react";
 import { RowActionMenu } from "../../components/common/RowActionMenu";
 import {
   AlertHexaIcon,
@@ -17,6 +17,7 @@ import {
   TimeIcon,
 } from "@/icons";
 import { ALERT_HAZARD_GROUPS, formatAlertCategory } from "@/constants/alertCategories";
+import { useBranchSubcity } from "@/context/HierarchyContext";
 const SubscriptionReviewModal = lazy(() => import("./SubscriptionReviewModal"));
 
 type AlertSubscription = {
@@ -102,6 +103,7 @@ type ChannelPreset = {
 };
 
 const STATUS_OPTIONS = ["all", "active", "paused", "unsubscribed"] as const;
+const SUBSCRIBERS_PER_PAGE = 10;
 const TABS: Array<{ key: TabKey; label: string; description: string }> = [
   { key: "compose", label: "Send Alert", description: "Compose and send messages to subscribers" },
   { key: "subscribers", label: "Subscribers", description: "View and manage subscriber list and preferences" },
@@ -201,6 +203,7 @@ const matchesLocation = (subscription: AlertSubscription, locationKey: string) =
 };
 
 export default function AlertSubscriptions() {
+  const branchSubcity = useBranchSubcity();
   const [subscriptions, setSubscriptions] = useState<AlertSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -209,6 +212,7 @@ export default function AlertSubscriptions() {
   const [composeState, setComposeState] = useState<ComposeState>(initialComposeState);
   const [locationTarget, setLocationTarget] = useState(LOCATION_GROUP_ALL);
   const [hazardTarget, setHazardTarget] = useState(HAZARD_GROUP_ALL);
+  const [currentPage, setCurrentPage] = useState(1);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"attach" | "scheduled" | "test">("scheduled");
@@ -293,6 +297,20 @@ export default function AlertSubscriptions() {
   const targetedSubscriptions = useMemo(() => {
     return filteredSubscriptions.filter((sub) => matchesLocation(sub, locationTarget) && matchesHazard(sub, hazardTarget));
   }, [filteredSubscriptions, hazardTarget, locationTarget]);
+
+  const totalPages = Math.max(1, Math.ceil(targetedSubscriptions.length / SUBSCRIBERS_PER_PAGE));
+  const paginatedSubscriptions = targetedSubscriptions.slice(
+    (currentPage - 1) * SUBSCRIBERS_PER_PAGE,
+    currentPage * SUBSCRIBERS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, locationTarget, hazardTarget]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const recipientCount = useMemo(() => {
     const audiencePool =
@@ -428,6 +446,19 @@ export default function AlertSubscriptions() {
         description="Send alerts and manage subscriber preferences"
       />
       <PageBreadcrumb pageTitle="Alert Subscriptions" />
+      {branchSubcity && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+            <span>
+              <strong>Branch Jurisdiction:</strong> Showing alert subscribers for <strong>{branchSubcity} Branch</strong>. Broadcasts and management are restricted to your subcity.
+            </span>
+          </div>
+          <span className="rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+            {branchSubcity} Subcity
+          </span>
+        </div>
+      )}
 
       <ReportDashboardCards
         kind="subscription"
@@ -473,11 +504,10 @@ export default function AlertSubscriptions() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`rounded-2xl px-6 py-3 text-sm font-semibold transition ${
-                    isActive
+                  className={`rounded-2xl px-6 py-3 text-sm font-semibold transition ${isActive
                       ? "bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-950"
                       : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -777,11 +807,10 @@ export default function AlertSubscriptions() {
                           setDeliveryMode("attach");
                           setFeedbackMessage("Attachment picker is not wired in this view yet.");
                         }}
-                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${
-                          deliveryMode === "attach"
+                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${deliveryMode === "attach"
                             ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200"
                             : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:text-gray-300"
-                        }`}
+                          }`}
                       >
                         <PlusIcon className="h-3.5 w-3.5" />
                         Attach
@@ -790,11 +819,10 @@ export default function AlertSubscriptions() {
                       <button
                         type="button"
                         onClick={() => setDeliveryMode("scheduled")}
-                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${
-                          deliveryMode === "scheduled"
+                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${deliveryMode === "scheduled"
                             ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200"
                             : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:text-gray-300"
-                        }`}
+                          }`}
                       >
                         <CalenderIcon className="h-3.5 w-3.5" />
                         Scheduled
@@ -806,11 +834,10 @@ export default function AlertSubscriptions() {
                           setDeliveryMode("test");
                           setFeedbackMessage("A test broadcast preview is ready for review.");
                         }}
-                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${
-                          deliveryMode === "test"
+                        className={`inline-flex items-center gap-2 rounded-2xl border px-4.5 py-2.5 text-[13px] font-medium transition ${deliveryMode === "test"
                             ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200"
                             : "border-gray-200 text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:text-gray-300"
-                        }`}
+                          }`}
                       >
                         <ChatIcon className="h-3.5 w-3.5" />
                         Test
@@ -977,11 +1004,10 @@ export default function AlertSubscriptions() {
                     <button
                       key={status}
                       onClick={() => setStatusFilter(status)}
-                      className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
-                        statusFilter === status
+                      className={`rounded-full border px-4 py-2 text-xs font-medium transition ${statusFilter === status
                           ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-200"
                           : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-800 dark:text-gray-400"
-                      }`}
+                        }`}
                     >
                       {status === "all" ? "All" : status.charAt(0).toUpperCase() + status.slice(1)}
                     </button>
@@ -994,7 +1020,7 @@ export default function AlertSubscriptions() {
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Search by name, email, phone, or location"
                     className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-amber-500 dark:focus:ring-amber-500/10"
-                    />
+                  />
                 </div>
               </div>
 
@@ -1017,11 +1043,10 @@ export default function AlertSubscriptions() {
                         key={segment.key}
                         type="button"
                         onClick={() => setLocationTarget(segment.key)}
-                        className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
-                          locationTarget === segment.key
+                        className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${locationTarget === segment.key
                             ? "border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-100"
                             : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300"
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-medium">{segment.label}</span>
                         <span className="text-sm font-semibold">{formatCount(segment.count)}</span>
@@ -1048,11 +1073,10 @@ export default function AlertSubscriptions() {
                         key={segment.key}
                         type="button"
                         onClick={() => setHazardTarget(segment.key)}
-                        className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
-                          hazardTarget === segment.key
+                        className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${hazardTarget === segment.key
                             ? "border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-100"
                             : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300"
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-medium">{segment.label}</span>
                         <span className="text-sm font-semibold">{formatCount(segment.count)}</span>
@@ -1113,7 +1137,7 @@ export default function AlertSubscriptions() {
                           </td>
                         </tr>
                       ) : (
-                        targetedSubscriptions.map((sub) => (
+                        paginatedSubscriptions.map((sub) => (
                           <tr
                             key={sub._id}
                             className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-950"
@@ -1166,6 +1190,8 @@ export default function AlertSubscriptions() {
                                 <button
                                   type="button"
                                   onClick={() => setSelectedSubscription(sub)}
+                                  aria-label="View and message subscriber"
+                                  title="View and message subscriber"
                                   className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-amber-400/60 hover:text-amber-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                 >
                                   <EyeIcon className="h-3.5 w-3.5" />
@@ -1187,9 +1213,37 @@ export default function AlertSubscriptions() {
                     </tbody>
                   </table>
                 </div>
-                <div className="border-t border-gray-200 px-5 py-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                  Showing {formatCount(targetedSubscriptions.length)} of {formatCount(filteredSubscriptions.length)} filtered subscribers for{" "}
-                  {targetedLocationLabel} and {targetedHazardLabel}.
+                <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Showing {targetedSubscriptions.length === 0 ? 0 : (currentPage - 1) * SUBSCRIBERS_PER_PAGE + 1}
+                    {targetedSubscriptions.length > 0 && `-${Math.min(currentPage * SUBSCRIBERS_PER_PAGE, targetedSubscriptions.length)}`} of {formatCount(targetedSubscriptions.length)} targeted subscribers ({formatCount(filteredSubscriptions.length)} filtered) for{" "}
+                    {targetedLocationLabel} and {targetedHazardLabel}.
+                  </span>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                        disabled={currentPage === 1}
+                        aria-label="Previous page"
+                        className="rounded-lg border border-gray-200 p-2 text-gray-600 transition hover:border-amber-400 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="min-w-20 text-center font-medium text-gray-600 dark:text-gray-300">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                        disabled={currentPage === totalPages}
+                        aria-label="Next page"
+                        className="rounded-lg border border-gray-200 p-2 text-gray-600 transition hover:border-amber-400 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

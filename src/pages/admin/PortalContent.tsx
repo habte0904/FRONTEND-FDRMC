@@ -65,7 +65,14 @@ type PortalContent = {
     copyrightText?: string;
   };
   pages?: {
-    feedback?: { title?: string; subtitle?: string; templateSearch?: string; heroImage?: string };
+    feedback?: {
+      title?: string;
+      heroTitle?: string;
+      heroAccent?: string;
+      subtitle?: string;
+      templateSearch?: string;
+      heroImage?: string;
+    };
     riskInformation?: {
       title?: string;
       subtitle?: string;
@@ -343,6 +350,8 @@ const DEFAULT_CONTENT: PortalContent = {
   pages: {
     feedback: {
       title: "Feedback",
+      heroTitle: "Your Voice, Our",
+      heroAccent: "Innovation.",
       subtitle: "Give us your feedback",
       templateSearch: "Portal Feedback",
       heroImage: "/assets/images/hero1.png",
@@ -1651,6 +1660,40 @@ const PortalContentPage: React.FC = () => {
                 setContent((c) => ({
                   ...c,
                   pages: { ...(c.pages || {}), feedback: { ...(c.pages?.feedback || {}), title: e.target.value } },
+                }))
+              }
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600">Hero Heading</label>
+            <input
+              className={inputClass}
+              value={content.pages?.feedback?.heroTitle ?? ""}
+              placeholder="Your Voice, Our"
+              onChange={(e) =>
+                setContent((c) => ({
+                  ...c,
+                  pages: {
+                    ...(c.pages || {}),
+                    feedback: { ...(c.pages?.feedback || {}), heroTitle: e.target.value },
+                  },
+                }))
+              }
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600">Hero Highlight</label>
+            <input
+              className={inputClass}
+              value={content.pages?.feedback?.heroAccent ?? ""}
+              placeholder="Innovation."
+              onChange={(e) =>
+                setContent((c) => ({
+                  ...c,
+                  pages: {
+                    ...(c.pages || {}),
+                    feedback: { ...(c.pages?.feedback || {}), heroAccent: e.target.value },
+                  },
                 }))
               }
             />

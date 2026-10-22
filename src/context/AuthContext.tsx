@@ -10,13 +10,18 @@ interface User {
     status: string;
     roles?: { id: string; name: string }[];
     department?: { id: string; name: string };
-    organization?: { id: string; name: string };
+    sector?: { id: string; name: string };
+    team?: { id: string; name: string };
+    organization?: { id: string; name: string; type?: string; subcityName?: string };
     organizationType?: string;
     subcity?: string;
     kebele?: string;
     permissions?: string[];
     profileImage?: string;
     accessLevel?: string;
+    lastLogin?: string;
+    createdAt?: string;
+    authProvider?: string;
     onboarding?: {
         welcomeShown: boolean;
     }

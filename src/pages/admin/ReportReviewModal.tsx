@@ -85,6 +85,9 @@ type ReportEditDraft = {
   householdsInArea: string;
   addressLine: string;
   city: string;
+  subCity: string;
+  woreda: string;
+  placeName: string;
   region: string;
   phone: string;
   email: string;
@@ -108,6 +111,13 @@ const titleCase = (value: string) =>
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatSeverityOrPriority = (reportType: ReviewReport["reportType"], value?: string) => {
+  if (!value) return "N/A";
+  if (reportType !== "concern") return titleCase(value);
+  if (value === "minor" || value === "low") return "Minor / Low";
+  return titleCase(value);
+};
 
 const humanizeValue = (value: unknown) => {
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -181,13 +191,11 @@ const SummaryPill = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const getAvailableStatuses = (currentStatus: string) => {
+const getAvailableStatuses = () => {
   const statuses = ["new", "submitted", "received", "dispatched", "not_solved", "solved", "closed", "archived"];
-  const currentIndex = statuses.indexOf(currentStatus || 'new');
-  return statuses.map((status, index) => ({
+  return statuses.map((status) => ({
     value: status,
     label: status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    disabled: index < currentIndex
   }));
 };
 
@@ -204,6 +212,9 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
     householdsInArea: "",
     addressLine: "",
     city: "",
+    subCity: "",
+    woreda: "",
+    placeName: "",
     region: "",
     phone: "",
     email: "",
@@ -220,6 +231,8 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
   const [resolvedLatitude, setResolvedLatitude] = useState<string>("");
   const [resolvedLongitude, setResolvedLongitude] = useState<string>("");
   const [resolvedFiles, setResolvedFiles] = useState<File[]>([]);
+  const [reportFiles, setReportFiles] = useState<File[]>([]);
+  const [reportFilePreviews, setReportFilePreviews] = useState<string[]>([]);
   const [coordError, setCoordError] = useState<string | null>(null);
   const [filePreviews, setFilePreviews] = useState<{ id: string; url: string; kind: 'image' | 'video' }[]>([]);
 
@@ -237,17 +250,16 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
       householdsInArea: report.concernInfo?.householdsInArea || "",
       addressLine: report.location?.addressLine || "",
       city: report.location?.city || "",
+      subCity: report.location?.subCity || "",
+      woreda: report.location?.woreda || "",
+      placeName: report.location?.placeName || "",
       region: report.location?.region || "",
       phone: report.contact?.phone || "",
       email: report.contact?.email || "",
     });
     setDraft({
       status: report.status,
-      resolutionDescription:
-        report.resolutionDescription ||
-        report.details ||
-        report.concernDetails ||
-        "",
+      resolutionDescription: report.resolutionDescription || "",
       resolvedBy: report.resolvedBy || "",
       resolvedAt: toDatetimeLocalValue(report.resolvedAt),
       resolutionNotes: report.resolutionNotes || "",
@@ -257,6 +269,8 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
     setResolvedLatitude(report.location?.latitude != null ? String(report.location?.latitude) : "");
     setResolvedLongitude(report.location?.longitude != null ? String(report.location?.longitude) : "");
     setResolvedFiles([]);
+    setReportFiles([]);
+    setReportFilePreviews([]);
     setFilePreviews([]);
   }, [report]);
 
@@ -300,15 +314,22 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
     };
   }, [filePreviews]);
 
+  useEffect(() => {
+    return () => {
+      reportFilePreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [reportFilePreviews]);
+
   if (!open || !report) return null;
 
   const userAttachments = report.attachments?.filter(a => a.uploadedBy !== 'admin') || [];
   const adminAttachments = report.attachments?.filter(a => a.uploadedBy === 'admin') || [];
 
-  const handleSave = async () => {
+  const handleSave = async (saveType: "report" | "resolution") => {
     if (!onSave) return;
+    const isResolutionSave = saveType === "resolution";
 
-    if (draft.status === "not_solved") {
+    if (isResolutionSave && draft.status === "not_solved") {
       if (!draft.responsibleInstitution.trim()) {
         alert("Please enter the responsible institution or team for this not-solved report.");
         return;
@@ -325,7 +346,7 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
     setCoordError(null);
     const latStr = resolvedLatitude?.trim();
     const lngStr = resolvedLongitude?.trim();
-    if (latStr || lngStr) {
+    if (isResolutionSave && (latStr || lngStr)) {
       const latNum = Number(latStr);
       const lngNum = Number(lngStr);
       if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
@@ -341,14 +362,15 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
         return;
       }
     }
-    // Upload any resolved media first and gather attachment objects
-    const newAttachments: { url: string; type?: string; name?: string; uploadedBy?: 'admin' }[] = [];
-    if (resolvedFiles.length > 0) {
-      for (const file of resolvedFiles) {
+    // Upload only the media associated with the action being saved.
+    const newAttachments: { url: string; type?: string; name?: string; uploadedBy?: 'user' | 'admin' }[] = [];
+    const filesToUpload = isResolutionSave ? resolvedFiles : reportFiles;
+    if (filesToUpload.length > 0) {
+      for (const file of filesToUpload) {
         try {
           const fd = new FormData();
           fd.append('file', file);
-          const res = await api.post('/upload/incident-media', fd, {
+          const res = await api.post('/uploads/incident-media', fd, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
           if (res && res.data && res.data.url) {
@@ -356,58 +378,65 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
               url: res.data.url,
               type: file.type?.startsWith('video') ? 'video' : 'image',
               name: file.name,
-              uploadedBy: 'admin',
+              uploadedBy: isResolutionSave ? 'admin' : 'user',
             });
             // remove preview for this file if exists
             setFilePreviews((prev) => prev.filter((p) => p.url !== URL.createObjectURL(file)));
           }
         } catch (err) {
-          console.error('Failed to upload resolved media', err);
-          alert('Failed to upload one of the resolved media files');
+          console.error('Failed to upload media', err);
+          alert('Failed to upload one of the selected media files');
+          return;
         }
       }
     }
 
     // Build update payload
-    const updates: Partial<ReviewReport> & Record<string, unknown> = {
-      status: draft.status,
-      resolutionDescription: draft.resolutionDescription.trim(),
-      resolvedBy: draft.resolvedBy.trim(),
-      resolvedAt: resolvedAtValue || undefined,
-      resolutionNotes: draft.resolutionNotes.trim(),
-      responsibleInstitution: draft.responsibleInstitution.trim(),
-      assignedTo: draft.assignedTo.trim(),
-      category: reportDraft.category.trim(),
-      severity: reportDraft.severity.trim(),
-      details: report?.reportType === "incident" ? reportDraft.details.trim() : "",
-      concernDetails: report?.reportType === "concern" ? reportDraft.concernDetails.trim() : "",
-      concernCategory: report?.reportType === "concern"
-        ? reportDraft.concernCategory.split(",").map((item) => item.trim()).filter(Boolean)
-        : report?.concernCategory,
-      concernInfo: report?.reportType === "concern"
-        ? {
-            nature: reportDraft.nature.trim(),
-            peopleAffected: reportDraft.peopleAffected.trim(),
-            householdsInArea: reportDraft.householdsInArea.trim(),
-          }
-        : report?.concernInfo,
-      location: {
-        ...(report?.location || {}),
-        addressLine: reportDraft.addressLine.trim(),
-        city: reportDraft.city.trim(),
-        region: reportDraft.region.trim(),
-      },
-      contact: {
-        ...(report?.contact || {}),
-        phone: reportDraft.phone.trim(),
-        email: reportDraft.email.trim(),
-      },
-    };
+    const updates: Partial<ReviewReport> & Record<string, unknown> = isResolutionSave
+      ? {
+          status: draft.status,
+          resolutionDescription: draft.resolutionDescription.trim(),
+          resolvedBy: draft.resolvedBy.trim(),
+          resolvedAt: resolvedAtValue || undefined,
+          resolutionNotes: draft.resolutionNotes.trim(),
+          responsibleInstitution: draft.responsibleInstitution.trim(),
+          assignedTo: draft.assignedTo.trim(),
+        }
+      : {
+          category: reportDraft.category.trim(),
+          severity: reportDraft.severity.trim(),
+          details: report?.reportType === "incident" ? reportDraft.details.trim() : "",
+          concernDetails: report?.reportType === "concern" ? reportDraft.concernDetails.trim() : "",
+          concernCategory: report?.reportType === "concern"
+            ? reportDraft.concernCategory.split(",").map((item) => item.trim()).filter(Boolean)
+            : report?.concernCategory,
+          concernInfo: report?.reportType === "concern"
+            ? {
+                nature: reportDraft.nature.trim(),
+                peopleAffected: reportDraft.peopleAffected.trim(),
+                householdsInArea: reportDraft.householdsInArea.trim(),
+              }
+            : report?.concernInfo,
+          location: {
+            ...(report?.location || {}),
+            addressLine: reportDraft.addressLine.trim(),
+            city: reportDraft.city.trim(),
+            subCity: reportDraft.subCity.trim(),
+            woreda: reportDraft.woreda.trim(),
+            placeName: reportDraft.placeName.trim(),
+            region: reportDraft.region.trim(),
+          },
+          contact: {
+            ...(report?.contact || {}),
+            phone: reportDraft.phone.trim(),
+            email: reportDraft.email.trim(),
+          },
+        };
 
     // If user provided exact pin coordinates, include them in location
     const lat = resolvedLatitude?.trim();
     const lng = resolvedLongitude?.trim();
-    if (lat || lng) {
+    if (isResolutionSave && (lat || lng)) {
       const location = { ...(report.location || {}) } as Record<string, unknown>;
       if (lat) location.latitude = Number(lat);
       if (lng) location.longitude = Number(lng);
@@ -429,6 +458,13 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
     setResolvedFiles(list);
     const previews = list.map((f) => ({ id: String(Math.random()), url: URL.createObjectURL(f), kind: (f.type.startsWith('video') ? 'video' : 'image') as 'image' | 'video' }));
     setFilePreviews(previews);
+  };
+
+  const handleReportFilesSelected = (files: FileList | null) => {
+    if (!files) return;
+    const list = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    setReportFiles(list);
+    setReportFilePreviews(list.map((file) => URL.createObjectURL(file)));
   };
 
   return (
@@ -478,7 +514,7 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <InfoCard label="Report Type" value={report.reportType || "N/A"} />
           <InfoCard label="Category" value={categoryLabel || "N/A"} />
-          <InfoCard label="Severity / Status" value={`${report.severity || "N/A"} / ${titleCase(report.status)}`} />
+          <InfoCard label={report.reportType === "concern" ? "Concern Priority / Status" : "Severity / Status"} value={`${formatSeverityOrPriority(report.reportType, report.severity)} / ${titleCase(report.status)}`} />
           <InfoCard label="Created" value={formatDisplayDate(report.createdAt)} />
           <InfoCard label="Updated" value={formatDisplayDate(report.updatedAt)} />
           <InfoCard label="Anonymous" value={report.anonymous ? "Yes" : "No"} />
@@ -588,18 +624,28 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
               <button type="button" onClick={() => setEditing(false)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white">Cancel edit</button>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Category
-                <input value={reportDraft.category} onChange={(e) => setReportDraft((p) => ({ ...p, category: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
-              </label>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Severity / Priority
+              {report.reportType !== "concern" ? (
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Category
+                  <input value={reportDraft.category} onChange={(e) => setReportDraft((p) => ({ ...p, category: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
+                </label>
+              ) : null}
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{report.reportType === "concern" ? "Concern Priority" : "Severity"}
                 <select value={reportDraft.severity} onChange={(e) => setReportDraft((p) => ({ ...p, severity: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700">
-                  <option value="">Select severity</option>
-                  <option value="very_high">Very High</option>
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="moderate">Medium / Moderate</option>
-                  <option value="low">Low</option>
-                  <option value="minor">Minor</option>
+                  <option value="">Select {report.reportType === "concern" ? "priority" : "severity"}</option>
+                  {report.reportType === "concern" ? (
+                    <>
+                      <option value="minor">Minor / Low</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="minor">Minor</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="critical">Critical</option>
+                    </>
+                  )}
                 </select>
               </label>
               {report.reportType === "concern" ? (
@@ -627,6 +673,15 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">City
                 <input value={reportDraft.city} onChange={(e) => setReportDraft((p) => ({ ...p, city: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
               </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sub-city
+                <input value={reportDraft.subCity} onChange={(e) => setReportDraft((p) => ({ ...p, subCity: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
+              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Woreda
+                <input value={reportDraft.woreda} onChange={(e) => setReportDraft((p) => ({ ...p, woreda: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
+              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Place Name
+                <input value={reportDraft.placeName} onChange={(e) => setReportDraft((p) => ({ ...p, placeName: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
+              </label>
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Region
                 <input value={reportDraft.region} onChange={(e) => setReportDraft((p) => ({ ...p, region: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
               </label>
@@ -636,6 +691,32 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Email
                 <input type="email" value={reportDraft.email} onChange={(e) => setReportDraft((p) => ({ ...p, email: e.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-slate-700" />
               </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 md:col-span-2">Add Report Image
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => handleReportFilesSelected(e.target.files)}
+                  className="mt-2 w-full text-sm font-normal normal-case tracking-normal text-slate-700"
+                />
+                {reportFilePreviews.length > 0 ? (
+                  <div className="mt-3 flex gap-3 overflow-x-auto">
+                    {reportFilePreviews.map((url) => (
+                      <img key={url} src={url} alt="Report image preview" className="h-20 w-20 rounded-lg object-cover" />
+                    ))}
+                  </div>
+                ) : null}
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => handleSave("report")}
+                disabled={saving}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Save report edits"}
+              </button>
             </div>
           </div>
         ) : null}
@@ -665,8 +746,8 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
                 onChange={(event) => setDraft((prev) => ({ ...prev, status: event.target.value as ReviewReport["status"] }))}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-rose-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
               >
-                {getAvailableStatuses(report.status).map(s => (
-                  <option key={s.value} value={s.value} disabled={s.disabled}>
+                {getAvailableStatuses().map(s => (
+                  <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
                 ))}
@@ -798,7 +879,17 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
               <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">{resolvedFiles.length} file(s) selected</div>
             ) : null}
           </div>
-          {(report.resolutionDescription || report.resolvedBy || report.resolvedAt || report.resolutionNotes) ? (
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleSave("resolution")}
+              disabled={saving}
+              className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save resolution"}
+            </button>
+          </div>
+          {(["solved", "closed"].includes(report.status) && (report.resolutionDescription || report.resolvedBy || report.resolvedAt || report.resolutionNotes)) ? (
             <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-sm text-rose-950 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
               <div className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-200">
                 Current Resolution Snapshot
@@ -828,32 +919,36 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
                   </div>
                   <div className="mt-1 whitespace-pre-wrap leading-6">{report.resolutionNotes || "N/A"}</div>
                 </div>
-                {adminAttachments.length > 0 ? (
-                  <div className="sm:col-span-2">
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-rose-600/80 dark:text-rose-200/80 mb-2">
-                      Admin Uploaded Media
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {adminAttachments.map((att, i) => (
-                        <div key={i} className="overflow-hidden rounded-xl border border-rose-200 bg-white/50 dark:border-rose-800 dark:bg-black/20">
-                          {getAttachmentKind(att) === 'video' ? (
-                            <video src={resolvePortalAssetUrl(att.url)} className="h-24 w-full object-cover" controls />
-                          ) : (
-                            <a href={resolvePortalAssetUrl(att.url)} target="_blank" rel="noreferrer">
-                              <img src={resolvePortalAssetUrl(att.url)} className="h-24 w-full object-cover" alt="admin upload" />
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
           ) : null}
           <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             Saved resolution time: {formatDisplayDate(report.resolvedAt)}
           </div>
+          {adminAttachments.length > 0 ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-200">
+                Resolved Photos / Videos
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {adminAttachments.map((attachment, index) => {
+                  const source = resolvePortalAssetUrl(attachment.url);
+                  const label = attachment.name || `Resolved media ${index + 1}`;
+                  return (
+                    <div key={`${attachment.url || label}-${index}`} className="overflow-hidden rounded-xl border border-emerald-200 bg-white dark:border-emerald-800 dark:bg-black/20">
+                      {getAttachmentKind(attachment) === "video" ? (
+                        <video src={source} className="h-28 w-full object-cover" controls />
+                      ) : (
+                        <a href={source} target="_blank" rel="noreferrer" title={`Open ${label}`}>
+                          <img src={source} className="h-28 w-full object-cover" alt={label} />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-5">
@@ -933,16 +1028,6 @@ export const ReportReviewModal = ({ open, report, onClose, onSave, saving = fals
           >
             Close
           </button>
-          {onSave ? (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-            >
-              {saving ? "Saving..." : "Save changes"}
-            </button>
-          ) : null}
         </div>
       </div>
     </div>

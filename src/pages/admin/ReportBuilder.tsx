@@ -17,6 +17,7 @@ import {
   Database,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useIsBranchUser, useBranchSubcity } from '../../context/HierarchyContext';
 import { fetchSources, executeQuery, fetchTemplates, executeMultiQuery } from '../../api/reportBuilderApi';
 import type {
   DataSource,
@@ -41,11 +42,25 @@ import { toast } from 'react-toastify';
 export const ReportBuilder: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isBranchUser = useIsBranchUser();
+  const branchSubcity = useBranchSubcity();
+
   const [sources, setSources] = useState<DataSource[]>([]);
   const [templates, setTemplates] = useState<ReportTemplate[]>([]);
   const [loadingSources, setLoadingSources] = useState(true);
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [showPresetsPanel, setShowPresetsPanel] = useState(true);
+
+  const getBranchInitialFilters = (sourceKey: string): ReportFilters => {
+    if (!isBranchUser || !branchSubcity) return {};
+    if (sourceKey === 'incident_reports') {
+      return { 'location.subCity': branchSubcity };
+    }
+    if (sourceKey === 'household_profiles' || sourceKey === 'woreda_assessments') {
+      return { 'location.subcity': branchSubcity };
+    }
+    return {};
+  };
 
   // ── Report Mode Toggle ────────────────────────────────────────────────────
   type ReportMode = 'single' | 'multi';
@@ -86,6 +101,7 @@ export const ReportBuilder: React.FC = () => {
           ...prev,
           source: first.key,
           fields: first.defaultFields,
+          filters: getBranchInitialFilters(first.key),
         }));
       }
     } catch (err: any) {
@@ -100,6 +116,16 @@ export const ReportBuilder: React.FC = () => {
     loadInitialData();
   }, []);
 
+  // Sync branch filter when branchSubcity becomes available
+  useEffect(() => {
+    if (isBranchUser && branchSubcity && config.source) {
+      setConfig((prev) => ({
+        ...prev,
+        filters: { ...prev.filters, ...getBranchInitialFilters(prev.source) },
+      }));
+    }
+  }, [isBranchUser, branchSubcity, config.source]);
+
   const currentSource = useMemo(() => {
     return sources.find((s) => s.key === config.source) || null;
   }, [sources, config.source]);
@@ -110,7 +136,7 @@ export const ReportBuilder: React.FC = () => {
     if (!src) return;
     setConfig({
       source: sourceKey,
-      filters: {},
+      filters: getBranchInitialFilters(sourceKey),
       fields: src.defaultFields,
       groupBy: '',
       chartType: 'table',
@@ -125,6 +151,10 @@ export const ReportBuilder: React.FC = () => {
 
   // Filter change
   const handleFilterChange = (key: string, value: ReportFilters[string]) => {
+    // If branch user, do not let them overwrite branch subcity
+    if (isBranchUser && branchSubcity && ['location.subCity', 'location.subcity', 'subcity', 'subCity'].includes(key)) {
+      return;
+    }
     setConfig((prev) => ({
       ...prev,
       filters: { ...prev.filters, [key]: value },
@@ -132,7 +162,7 @@ export const ReportBuilder: React.FC = () => {
   };
 
   const handleClearFilters = () => {
-    setConfig((prev) => ({ ...prev, filters: {} }));
+    setConfig((prev) => ({ ...prev, filters: getBranchInitialFilters(prev.source) }));
   };
 
   // Run report query
@@ -157,7 +187,7 @@ export const ReportBuilder: React.FC = () => {
     if (!currentSource) return;
     setConfig({
       source: currentSource.key,
-      filters: {},
+      filters: getBranchInitialFilters(currentSource.key),
       fields: currentSource.defaultFields,
       groupBy: '',
       chartType: 'table',
@@ -342,6 +372,23 @@ export const ReportBuilder: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Branch Scope Banner for Branch Users */}
+        {isBranchUser && branchSubcity && (
+          <div className="mt-4 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 flex items-center justify-between text-xs text-blue-900 dark:text-blue-200 font-semibold shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-xl bg-blue-600 text-white shadow-xs">
+                <Database className="w-3.5 h-3.5" />
+              </span>
+              <span>
+                Operating in <strong>{branchSubcity} Branch Scope</strong>. Queries across incident reports, household profiles, and woreda assessments are locked to your branch territory.
+              </span>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-xs shrink-0">
+              Branch Active
+            </span>
+          </div>
+        )}
 
         {/* Mode Toggle — Single vs Multi */}
         <div className="pt-4 flex items-center justify-between flex-wrap gap-3">

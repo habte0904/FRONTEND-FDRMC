@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Info, Target, Users, Layout } from "lucide-react";
 import RichTextDisplay from "@/components/common/RichTextDisplay";
+import { resolvePortalAssetUrl } from "@/utils/resolvePortalAssetUrl";
 
 type AboutItem = { title: string; description: string; iconKey?: string; disabled?: boolean };
 
@@ -45,7 +46,8 @@ const About: React.FC<{ badge?: string; title?: string; description?: string; it
     const resolvedItems = Array.isArray(items)
         ? items.filter((item) => item?.disabled !== true)
         : defaultAboutItems;
-    const aboutImageSrc = image || "/assets/images/disas.png";
+    const aboutImageSrc = resolvePortalAssetUrl(image) || "/assets/images/disas.png";
+
     return (
         <section id="about" className="py-24 bg-white overflow-hidden">
             <div className="container mx-auto px-4 md:px-6">
@@ -110,6 +112,9 @@ const About: React.FC<{ badge?: string; title?: string; description?: string; it
                         <div className="relative z-10 rounded-3xl overflow-hidden shadow-[0_22px_70px_-15px_rgba(79,70,229,0.3)] transform hover:rotate-3 transition-transform duration-500">
                             <img
                                 src={aboutImageSrc}
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "/assets/images/disas.png";
+                                }}
                                 alt="IDRMIS dashboard"
                                 className="w-full h-[600px] object-cover object-top bg-white"
                             />

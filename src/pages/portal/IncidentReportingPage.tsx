@@ -38,7 +38,7 @@ type IncidentReportDraft = {
   reportType: "incident" | "concern";
   category: string;
   severity: "minor" | "moderate" | "critical";
-  concernPriority: "" | "very_high" | "high" | "medium" | "low";
+  concernPriority: "" | "minor" | "moderate" | "high" | "critical";
   concernCategory: string[];
   location: {
     addressLine: string;
@@ -1024,10 +1024,10 @@ const IncidentReportingPage: React.FC = () => {
                         required
                       >
                         <option value="" disabled>Select priority...</option>
-                        <option value="very_high">Very High</option>
+                        <option value="minor">Minor / Low</option>
+                        <option value="moderate">Moderate</option>
                         <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
+                        <option value="critical">Critical</option>
                       </select>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

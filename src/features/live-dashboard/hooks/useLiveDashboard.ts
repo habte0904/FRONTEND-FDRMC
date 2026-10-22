@@ -27,6 +27,7 @@ import {
   fetchDisasterHistory,
 } from '../services/liveDashboardApi';
 import { connectDashboardSocket, disconnectDashboardSocket } from '../socket/dashboardSocket';
+import { useIsBranchUser, useBranchSubcity } from '@/context/HierarchyContext';
 
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 
@@ -46,7 +47,33 @@ const getInitialFilters = (): FilterState => {
 };
 
 export const useLiveDashboard = () => {
-  const [filters, setFilters] = useState<FilterState>(getInitialFilters);
+  const isBranchUser = useIsBranchUser();
+  const branchSubcity = useBranchSubcity();
+
+  const getInitialFiltersForUser = useCallback((): FilterState => {
+    const base = getInitialFilters();
+    if (isBranchUser && branchSubcity) {
+      return {
+        ...base,
+        region: branchSubcity,
+        zone: branchSubcity,
+      };
+    }
+    return base;
+  }, [isBranchUser, branchSubcity]);
+
+  const [filters, setFilters] = useState<FilterState>(() => getInitialFiltersForUser());
+
+  // Keep branch subcity synchronized when resolved asynchronously from context
+  useEffect(() => {
+    if (isBranchUser && branchSubcity) {
+      setFilters((prev) => ({
+        ...prev,
+        region: branchSubcity,
+        zone: branchSubcity,
+      }));
+    }
+  }, [isBranchUser, branchSubcity]);
   const [summary, setSummary] = useState<SummaryStats | null>(null);
   const [mapIncidents, setMapIncidents] = useState<MapIncident[]>([]);
   const [hazards, setHazards] = useState<HazardAnalysisData>({ incidents: [], concerns: [] });
@@ -266,6 +293,11 @@ export const useLiveDashboard = () => {
   }, [loadDashboardData]);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
+    // Branch users cannot mutate their branch region/zone scope
+    if (isBranchUser && branchSubcity && (key === 'region' || key === 'zone')) {
+      return;
+    }
+
     if (key === 'datePreset') {
       const preset = value as FilterState['datePreset'];
       const todayStr = new Date().toISOString().split('T')[0];
@@ -288,7 +320,7 @@ export const useLiveDashboard = () => {
   };
 
   const resetFilters = () => {
-    setFilters(getInitialFilters());
+    setFilters(getInitialFiltersForUser());
   };
 
   const dismissAlert = () => {
@@ -312,6 +344,8 @@ export const useLiveDashboard = () => {
     socketStatus,
     activeAlert,
     filters,
+    isBranchUser,
+    branchSubcity,
     updateFilter,
     resetFilters,
     dismissAlert,

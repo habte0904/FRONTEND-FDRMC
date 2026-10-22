@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Phone, Shield, MapPin, Edit2, Trash2, Eye, KeyRound } from 'lucide-react';
 import { Can } from '../auth/PermissionGuard';
@@ -11,6 +11,7 @@ interface User {
     roles?: { id: string; name: string }[];
     department?: { id: string; name: string };
     organization?: { id: string; name: string };
+    organizationType?: string;
     sector?: { id: string; name: string };
     team?: { id: string; name: string };
     status: string;
@@ -141,13 +142,13 @@ export const UserCard: React.FC<UserCardProps> = ({ user, onEdit, onView, onDele
                             <span>{user.phone}</span>
                         </div>
                     )}
-                    {(user.organization || user.department) && (
+                    {user.organization && (
                         <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-white/50">
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
                                 <MapPin size={14} className="text-primary/70" />
                             </div>
                             <span className="truncate">
-                                {user.organization?.name} {user.department ? `| ${user.department.name}` : ''}
+                                {user.organizationType === 'head_office' ? 'Head Office (Central DRM)' : user.organization.name}
                             </span>
                         </div>
                     )}

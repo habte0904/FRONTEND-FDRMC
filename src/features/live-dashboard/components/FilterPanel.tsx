@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FilterState, ThemeOption } from '../types/dashboardTypes';
-import { Filter, RotateCcw, Search, Calendar as CalendarIcon, X, Check, Clock } from 'lucide-react';
+import { Filter, RotateCcw, Search, Calendar as CalendarIcon, X, Check, Clock, Lock } from 'lucide-react';
+import { useIsBranchUser, useBranchSubcity } from '@/context/HierarchyContext';
 
 interface Props {
   filters: FilterState;
@@ -10,6 +11,8 @@ interface Props {
 }
 
 export const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, onReset, theme }) => {
+  const isBranchUser = useIsBranchUser();
+  const branchSubcity = useBranchSubcity();
   const isLight = theme === 'light';
   const isBlueBlack = theme === 'blue_black';
 
@@ -209,13 +212,23 @@ export const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, onReset,
 
         {/* Region */}
         <div>
-          <label className={`block text-[11px] mb-1 ${labelColor}`}>Region / Subcity</label>
+          <label className={`block text-[11px] mb-1 flex items-center justify-between ${labelColor}`}>
+            <span>Region / Subcity</span>
+            {isBranchUser && branchSubcity && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-blue-500">
+                <Lock className="w-2.5 h-2.5" /> Locked
+              </span>
+            )}
+          </label>
           <input
             type="text"
             placeholder="e.g. Addis Ababa"
-            value={filters.region}
+            disabled={isBranchUser && Boolean(branchSubcity)}
+            value={isBranchUser && branchSubcity ? branchSubcity : filters.region}
             onChange={(e) => onFilterChange('region', e.target.value)}
-            className={`w-full border rounded-lg px-3 py-1.5 focus:outline-none transition ${inputBg}`}
+            className={`w-full border rounded-lg px-3 py-1.5 focus:outline-none transition ${inputBg} ${
+              isBranchUser && branchSubcity ? 'opacity-80 cursor-not-allowed bg-blue-500/10 border-blue-500/40 font-bold' : ''
+            }`}
           />
         </div>
       </div>

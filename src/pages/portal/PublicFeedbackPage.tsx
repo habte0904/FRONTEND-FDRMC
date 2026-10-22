@@ -180,8 +180,10 @@ const PublicFeedbackPage: React.FC = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 className="text-4xl lg:text-5xl font-black text-white leading-tight tracking-tight"
                             >
-                                Your Voice, Our <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-br from-brand-400 via-brand-400 to-accent-400">Innovation.</span>
+                                {portalContent?.pages?.feedback?.heroTitle || "Your Voice, Our"} <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-br from-brand-400 via-brand-400 to-accent-400">
+                                    {portalContent?.pages?.feedback?.heroAccent || "Innovation."}
+                                </span>
                             </motion.h1>
 
                             <motion.div
@@ -228,7 +230,7 @@ const PublicFeedbackPage: React.FC = () => {
                             <div className="absolute inset-0 bg-accent-600 rounded-[32px] rotate-3 blur-2xl opacity-10 group-hover:rotate-1 transition-transform duration-700" />
                             <div className="relative w-[380px] aspect-[1.4] rounded-[32px] overflow-hidden border-4 border-white shadow-[0_20px_50px_-15px_rgba(79,70,229,0.2)]">
                                 <img
-                                    src="/src/assets/images/feedback_banner.png"
+                                    src={resolvePortalAssetUrl(portalContent?.pages?.feedback?.heroImage) || "/src/assets/images/feedback_banner.png"}
                                     alt="Innovation UI"
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&q=80&w=1000"; }}

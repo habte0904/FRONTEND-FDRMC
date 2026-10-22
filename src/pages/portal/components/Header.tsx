@@ -100,6 +100,9 @@ const Header: React.FC<{
                         <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300 shadow-sm border border-slate-200 dark:border-slate-700">
                             <img
                                 src={logoUrl}
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "/images/logo/logo.png";
+                                }}
                                 alt="PDRM Logo"
                                 className="w-8 h-8 object-contain"
                             />

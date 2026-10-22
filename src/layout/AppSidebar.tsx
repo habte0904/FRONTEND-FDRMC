@@ -23,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import SidebarWidget from "./SidebarWidget";
 import { usePortalContent } from "@/hooks/usePortalContent";
 import { resolvePortalAssetUrl } from "@/utils/resolvePortalAssetUrl";
+import { SettingsIcon } from "lucide-react";
 
 // ─── Inline Map Icons (no map SVG exists in the icons folder) ─────────────────
 const MapNavIcon = () => (
@@ -58,6 +59,22 @@ const ReportIcon = () => (
   </svg>
 );
 
+const BroadcastNavIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+    <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+    <circle cx="12" cy="12" r="2" />
+    <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+    <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+  </svg>
+);
+
+const SmsNavIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type SubItem = {
   name: string;
@@ -90,7 +107,7 @@ const navItems: NavItem[] = [
   {
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500 animate-pulse">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
       </svg>
     ),
     name: "Live Dashboard",
@@ -178,7 +195,7 @@ const navItems: NavItem[] = [
         name: "Concern Reports",
         path: "/admin/concern-reports",
         icon: <DocsIcon />,
-        permission: "incidentreport_view",
+        permission: "concernreport_view",
       },
       {
         name: "Inspection Requests",
@@ -186,7 +203,7 @@ const navItems: NavItem[] = [
         icon: <CheckCircleIcon />,
         permission: "inspectionrequest_view",
       },
-     
+
     ],
   },
 ];
@@ -202,6 +219,12 @@ const adminItems: NavItem[] = [
         path: "/admin/news",
         icon: <ListIcon />,
         permission: "news_view",
+      },
+      {
+        name: "Site Settings",
+        path: "/admin/site-settings",
+        icon: <DocsIcon />,
+        permission: "portalcontent_view",
       },
       {
         name: "Help & Guides",
@@ -276,7 +299,7 @@ const adminItems: NavItem[] = [
         permission: "user_view",
       },
     ],
-  },{
+  }, {
     icon: <DocsIcon />,
     name: "Template Engine",
     subItems: [
@@ -313,7 +336,46 @@ const adminItems: NavItem[] = [
       },
     ],
   },
+  
   {
+    icon: <BroadcastNavIcon />,
+    name: "Broadcast",
+    permission: "broadcast_view|alertsubscription_view|smslog_view|audit_log_view|emailconfig_view",
+    subItems: [
+      {
+        name: "Email",
+        path: "/admin/email-logs",
+        icon: <MailIcon />,
+        permission: "broadcast_view|alertsubscription_view|audit_log_view|emailconfig_view",
+      },
+      {
+        name: "SMS",
+        path: "/admin/sms-logs",
+        icon: <SmsNavIcon />,
+        permission: "broadcast_view|smslog_view|audit_log_view|alertsubscription_view|smsconfig_view",
+      },
+    ],
+  },
+  {
+    icon: <SettingsIcon />,
+    name: "Settings",
+    subItems: [
+      {
+        name: "SMS Gateway Config",
+        path: "/admin/sms-config",
+        icon: <MailIcon />,
+        permission: "smsconfig_view",
+      },
+      {
+        name: "Email Gateway Config",
+        path: "/admin/email-config",
+        icon: <MailIcon />,
+        permission: "emailconfig_view",
+      },
+      
+      
+    ],
+  },{
     icon: <ListIcon />,
     name: "Audit",
     subItems: [
@@ -329,42 +391,7 @@ const adminItems: NavItem[] = [
         icon: <LockIcon />,
         permission: "adminlog_view",
       },
-      {
-        name: "Email Logs",
-        path: "/admin/email-logs",
-        icon: <MailIcon />,
-        permission: "audit_log_view",
-      },
-      {
-        name: "SMS Logs",
-        path: "/admin/sms-logs",
-        icon: <MailIcon />,
-        permission: "audit_log_view|smslog_view",
-      },
-    ],
-  },
-  {
-    icon: <DocsIcon />,
-    name: "Settings",
-    subItems: [
-      {
-        name: "SMS Gateway Config",
-        path: "/admin/sms-config",
-        icon: <MailIcon />,
-        permission: "smsconfig_view|portalcontent_view",
-      },
-      {
-        name: "Email Gateway Config",
-        path: "/admin/email-config",
-        icon: <MailIcon />,
-        permission: "emailconfig_view|portalcontent_view",
-      },
-      {
-        name: "Site Settings",
-        path: "/admin/site-settings",
-        icon: <DocsIcon />,
-        permission: "portalcontent_view",
-      },
+      
     ],
   },
 ];

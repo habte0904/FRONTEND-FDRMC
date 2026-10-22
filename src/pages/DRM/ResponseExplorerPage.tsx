@@ -13,6 +13,7 @@ import { toast } from 'react-toastify';
 import PageMeta from '@/components/common/PageMeta';
 import { Can } from '@/components/auth/PermissionGuard';
 import { getLocationHierarchy, type LocationHierarchyItem } from '@/api/locationService';
+import { useBranchSubcity } from '@/context/HierarchyContext';
 
 // --- Sub-component: Detail View Modal ---
 const ResponseDetailsModal: React.FC<{
@@ -197,13 +198,20 @@ const ResponseExplorerPage: React.FC = () => {
     const [templateFilter, setTemplateFilter] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [subcityFilter, setSubcityFilter] = useState('');
+    const branchSubcity = useBranchSubcity();
+    const [subcityFilter, setSubcityFilter] = useState(branchSubcity || '');
     const [woredaFilter, setWoredaFilter] = useState('');
     const [blockFilter, setBlockFilter] = useState('');
     const [houseNoFilter, setHouseNoFilter] = useState('');
 
     const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
     const [locationHierarchy, setLocationHierarchy] = useState<LocationHierarchyItem[]>([]);
+
+    useEffect(() => {
+        if (branchSubcity) {
+            setSubcityFilter(branchSubcity);
+        }
+    }, [branchSubcity]);
 
     useEffect(() => {
         api.get('/templates').then(res => setAvailableTemplates(res.data)).catch(() => {});
@@ -217,7 +225,7 @@ const ResponseExplorerPage: React.FC = () => {
         templateFilter,
         startDate,
         endDate,
-        subcityFilter,
+        branchSubcity ? '' : subcityFilter,
         woredaFilter,
         blockFilter,
         houseNoFilter
@@ -227,7 +235,7 @@ const ResponseExplorerPage: React.FC = () => {
         setTemplateFilter('');
         setStartDate('');
         setEndDate('');
-        setSubcityFilter('');
+        setSubcityFilter(branchSubcity || '');
         setWoredaFilter('');
         setBlockFilter('');
         setHouseNoFilter('');
@@ -266,12 +274,32 @@ const ResponseExplorerPage: React.FC = () => {
         if (!answers) return '';
         const entries = answers instanceof Map ? Array.from(answers.entries()) : Object.entries(answers);
 
-        for (const key of possibleKeys) {
-            const lowerKey = key.toLowerCase();
-            const found = entries.find(([k]) => k.toLowerCase() === lowerKey || k.toLowerCase().includes(lowerKey));
+        // Standard aliases for survey questions
+        const aliases: Record<string, string[]> = {
+            subcity: ['subcity', 'sub_city', 'subcity_name', 'subCity', 'q903', 'q196', 'q453'],
+            woreda: ['woreda', 'woreda_name', 'woreda_no', 'woredaNo', 'q693'],
+            block: ['block', 'block_no', 'block_number', 'blockNo', 'q855'],
+            house: ['house', 'house_no', 'house_number', 'houseNo', 'premise', 'q691'],
+        };
+
+        const targetKeys = new Set<string>();
+        for (const pk of possibleKeys) {
+            targetKeys.add(pk.toLowerCase());
+            for (const [groupKey, aliasList] of Object.entries(aliases)) {
+                if (pk.toLowerCase().includes(groupKey)) {
+                    aliasList.forEach(a => targetKeys.add(a.toLowerCase()));
+                }
+            }
+        }
+
+        for (const target of targetKeys) {
+            const found = entries.find(([k]) => k.toLowerCase() === target || k.toLowerCase().includes(target));
             if (found) {
                 const val = found[1] as any;
-                return (val?.value ?? val)?.toString() || '';
+                const finalVal = (val?.value !== undefined ? val.value : val);
+                if (finalVal !== undefined && finalVal !== null && finalVal !== '') {
+                    return String(finalVal);
+                }
             }
         }
         return '';
@@ -666,16 +694,19 @@ const ResponseExplorerPage: React.FC = () => {
                                         </label>
                                         <select
                                             value={subcityFilter}
+                                            disabled={Boolean(branchSubcity)}
                                             onChange={e => {
                                                 setSubcityFilter(e.target.value);
                                                 setWoredaFilter('');
                                             }}
-                                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-brand-500 shadow-sm cursor-pointer"
+                                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-brand-500 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                                         >
-                                            <option value="">All Subcities</option>
-                                            {locationHierarchy.map(s => (
-                                                <option key={s._id} value={s.name}>{s.name}</option>
-                                            ))}
+                                            {!branchSubcity && <option value="">All Subcities</option>}
+                                            {locationHierarchy
+                                                .filter(s => !branchSubcity || s.name.toLowerCase() === branchSubcity.toLowerCase())
+                                                .map(s => (
+                                                    <option key={s._id} value={s.name}>{s.name}{branchSubcity ? ' (Your Branch)' : ''}</option>
+                                                ))}
                                         </select>
                                     </div>
 

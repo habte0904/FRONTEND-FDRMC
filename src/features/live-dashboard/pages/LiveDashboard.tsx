@@ -46,6 +46,8 @@ export const LiveDashboard: React.FC = () => {
     socketStatus,
     activeAlert,
     filters,
+    isBranchUser,
+    branchSubcity,
     updateFilter,
     resetFilters,
     dismissAlert,
@@ -336,6 +338,11 @@ export const LiveDashboard: React.FC = () => {
           <span className="px-2.5 py-0.5 rounded-md font-black bg-blue-600 text-white text-[11px] shadow-sm">
             {activeProfileName}
           </span>
+          {isBranchUser && branchSubcity && (
+            <span className="px-2.5 py-0.5 rounded-md font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px]">
+              🔒 {branchSubcity} Branch Scope
+            </span>
+          )}
           <span className="text-slate-400 hidden sm:inline">
             ({sortedEnabledCards.length} of {cardsConfig.length} cards visible)
           </span>
