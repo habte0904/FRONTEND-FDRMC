@@ -6,6 +6,7 @@ import PublicServices from "./components/PublicServices";
 import Features from "./components/Features";
 import Footer from "./components/Footer";
 import { usePortalContent } from "@/hooks/usePortalContent";
+import { EmergencyPopup } from "@/components/common/EmergencyPopup";
 
 const LandingPage: React.FC = () => {
     const { portalContent } = usePortalContent();
@@ -20,6 +21,7 @@ const LandingPage: React.FC = () => {
 
     return (
         <div className="portal-theme min-h-screen bg-[#F8FAFF] font-outfit overflow-x-hidden">
+            <EmergencyPopup config={portalContent?.pages?.emergencyPopup} />
             {showHeader ? <Header branding={portalContent?.branding} header={portalContent?.header} /> : null}
             <main>
                 {showHero ? (

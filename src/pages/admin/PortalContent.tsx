@@ -5,6 +5,8 @@ import { toast } from "react-toastify";
 import { invalidatePortalContentCache } from "@/hooks/usePortalContent";
 import { resolvePortalAssetUrl } from "@/utils/resolvePortalAssetUrl";
 import RichTextEditor from "@/components/common/RichTextEditor";
+import { emergencyContactService, type EmergencyContact } from "@/api/emergencyContactService";
+import { EmergencyPopup } from "@/components/common/EmergencyPopup";
 
 type Disableable = { disabled?: boolean };
 type HeroSlide = { title: string; subtitle: string; image: string; iconKey?: string; disabled?: boolean };
@@ -72,6 +74,12 @@ type PortalContent = {
       subtitle?: string;
       templateSearch?: string;
       heroImage?: string;
+    };
+    emergencyPopup?: {
+      enabled?: boolean;
+      title?: string;
+      message?: string;
+      contactId?: string;
     };
     riskInformation?: {
       title?: string;
@@ -385,6 +393,12 @@ const DEFAULT_CONTENT: PortalContent = {
         { label: "Informational", count: 14, color: "var(--sev-info)" },
       ],
     },
+    emergencyPopup: {
+      enabled: false,
+      title: "Emergency Number",
+      message: "",
+      contactId: "",
+    },
   },
 };
 
@@ -410,7 +424,8 @@ type SettingsTab =
   | "feedback"
   | "riskInformation"
   | "contact"
-  | "footer";
+  | "footer"
+  | "emergencyPopup";
 
 const PortalContentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -418,6 +433,9 @@ const PortalContentPage: React.FC = () => {
   const [content, setContent] = useState<PortalContent>(DEFAULT_CONTENT);
   const [activeTab, setActiveTab] = useState<SettingsTab>("branding");
   const [uploading, setUploading] = useState(false);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [showModalPreview, setShowModalPreview] = useState(false);
 
   const uploadPortalImage = async (file: File) => {
     const formData = new FormData();
@@ -465,6 +483,23 @@ const PortalContentPage: React.FC = () => {
     };
     load();
   }, []);
+
+  // Lazy-load emergency contacts when the popup tab is opened
+  useEffect(() => {
+    if (activeTab !== "emergencyPopup" || emergencyContacts.length > 0 || loadingContacts) return;
+    const fetchContacts = async () => {
+      setLoadingContacts(true);
+      try {
+        const res = await emergencyContactService.list();
+        setEmergencyContacts((res.contacts || []).filter((c) => c.isActive));
+      } catch {
+        toast.error("Failed to load emergency contacts");
+      } finally {
+        setLoadingContacts(false);
+      }
+    };
+    fetchContacts();
+  }, [activeTab]);
 
   const save = async () => {
     try {
@@ -558,6 +593,7 @@ const PortalContentPage: React.FC = () => {
             ["features", "Features"],
             ["feedback", "Feedback"],
             ["riskInformation", "Risk Info Page"],
+            ["emergencyPopup", "🚨 Emergency Popup"],
             ["contact", "Contact"],
             ["footer", "Footer"],
           ] as const
@@ -1930,6 +1966,164 @@ const PortalContentPage: React.FC = () => {
       </div>
       )}
 
+      {activeTab === "emergencyPopup" && (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-2xl">
+            🚨
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Emergency Number Popup</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              When enabled, visitors will see a popup on the home page showing the selected emergency number.
+              The popup appears once per browser session.
+            </p>
+          </div>
+        </div>
+
+        {/* Enable toggle */}
+        <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 cursor-pointer">
+          <div>
+            <p className="font-semibold text-slate-800">Enable popup on home page</p>
+            <p className="text-sm text-slate-500 mt-0.5">Show an emergency number popup when visitors first open the site.</p>
+          </div>
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-red-600"
+            checked={content.pages?.emergencyPopup?.enabled ?? false}
+            onChange={(e) =>
+              setContent((c) => ({
+                ...c,
+                pages: {
+                  ...(c.pages || {}),
+                  emergencyPopup: { ...(c.pages?.emergencyPopup || {}), enabled: e.target.checked },
+                },
+              }))
+            }
+          />
+        </label>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Popup title */}
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Popup title</label>
+            <input
+              className={inputClass}
+              placeholder="Emergency Number"
+              value={content.pages?.emergencyPopup?.title ?? ""}
+              onChange={(e) =>
+                setContent((c) => ({
+                  ...c,
+                  pages: {
+                    ...(c.pages || {}),
+                    emergencyPopup: { ...(c.pages?.emergencyPopup || {}), title: e.target.value },
+                  },
+                }))
+              }
+            />
+          </div>
+
+          {/* Contact picker */}
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">
+              Emergency contact to display
+            </label>
+            <select
+              className={inputClass}
+              value={content.pages?.emergencyPopup?.contactId ?? ""}
+              onChange={(e) =>
+                setContent((c) => ({
+                  ...c,
+                  pages: {
+                    ...(c.pages || {}),
+                    emergencyPopup: { ...(c.pages?.emergencyPopup || {}), contactId: e.target.value },
+                  },
+                }))
+              }
+              disabled={loadingContacts}
+            >
+              <option value="">{loadingContacts ? "Loading contacts…" : "— Select a contact —"}</option>
+              {emergencyContacts.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.title} — {c.phoneNumber}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-slate-400">
+              Only active contacts are listed. Manage contacts at{" "}
+              <a href="/admin/emergency-contacts" target="_blank" className="text-brand-600 underline">
+                Emergency Contacts
+              </a>.
+            </p>
+          </div>
+
+          {/* Message */}
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-500">Message (optional)</label>
+            <textarea
+              rows={3}
+              className={`${inputClass} resize-y`}
+              placeholder="e.g. In case of an emergency, please call this number immediately."
+              value={content.pages?.emergencyPopup?.message ?? ""}
+              onChange={(e) =>
+                setContent((c) => ({
+                  ...c,
+                  pages: {
+                    ...(c.pages || {}),
+                    emergencyPopup: { ...(c.pages?.emergencyPopup || {}), message: e.target.value },
+                  },
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        {/* Preview */}
+        {(content.pages?.emergencyPopup?.enabled) && (
+          <div className="rounded-2xl border-2 border-dashed border-red-200 bg-red-50/40 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-red-500">Preview</p>
+              <button
+                type="button"
+                onClick={() => setShowModalPreview(true)}
+                className="px-3 py-1 text-xs font-bold rounded-lg border border-red-300 bg-white text-red-700 hover:bg-red-50 transition"
+              >
+                👁️ Test Open Modal Preview
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-xl">🚨</span>
+              <div>
+                <p className="font-bold text-slate-800">{content.pages?.emergencyPopup?.title || "Emergency Number"}</p>
+                <p className="text-lg font-extrabold text-red-600">
+                  {emergencyContacts.find((c) => String(c._id) === String(content.pages?.emergencyPopup?.contactId))?.phoneNumber || "—"}
+                </p>
+                {content.pages?.emergencyPopup?.message && (
+                  <p className="mt-1 text-sm text-slate-500">{content.pages.emergencyPopup.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showModalPreview && (
+          <EmergencyPopup
+            forceOpen={true}
+            onClosePreview={() => setShowModalPreview(false)}
+            config={{
+              enabled: true,
+              title: content.pages?.emergencyPopup?.title || "Emergency Number",
+              message: content.pages?.emergencyPopup?.message || "",
+              contactId: content.pages?.emergencyPopup?.contactId,
+              contact: emergencyContacts.find(
+                (c) => String(c._id) === String(content.pages?.emergencyPopup?.contactId)
+              ) || emergencyContacts[0],
+            }}
+          />
+        )}
+      </div>
+      )}
+
       {activeTab === "contact" && (
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
         <h2 className="text-lg font-bold text-slate-900">Contact</h2>
@@ -2426,3 +2620,4 @@ const PortalContentPage: React.FC = () => {
 };
 
 export default PortalContentPage;
+

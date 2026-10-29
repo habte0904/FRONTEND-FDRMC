@@ -59,6 +59,7 @@ export const invalidatePortalContentCache = () => {
   cachedPortalContent = null;
   inFlight = null;
   if (typeof window !== "undefined") {
+    try { sessionStorage.removeItem("emergencyPopupSeen"); } catch {}
     window.dispatchEvent(new Event(PORTAL_CONTENT_EVENT));
   }
 };
